@@ -1,0 +1,138 @@
+version: '2.4'
+services:
+    api-manager:
+      build:
+        context: ./apim/
+        args:
+          - BASE_IMAGE=wso2/wso2am:4.0.0
+      healthcheck:
+        test: ["CMD", "nc", "-z","localhost", "9443"]
+        interval: 10s
+        start_period: 150s
+        retries: 25
+      ports:
+      - "9443:9443"
+      - "8280:8280"
+      - "8243:8243"
+      - "9099:9099"
+      - "9021:9021"
+      volumes:
+      - ./conf/apim:/home/wso2carbon/wso2-config-volume
+      - ./artifacts/apim:/home/wso2carbon/wso2-artifact-volume
+      depends_on:
+        # db:
+          # condition: service_healthy
+        # mi-runtime:
+          # condition: service_healthy
+        si-runtime:
+          condition: service_healthy
+    # mi-runtime:
+    #   image: wso2/wso2mi:4.0.0
+    #   healthcheck:
+    #     test: ["CMD", "nc", "-z","localhost", "8290"]
+    #     interval: 10s
+    #     start_period: 30s
+    #     retries: 20
+    #   volumes:
+    #     - ./conf/mi:/home/wso2carbon/wso2-config-volume
+    #   ports:
+    #   - "8253:8253"
+    #   - "8291:8290"
+    #   - "9201:9201"
+    #   environment:
+    #     MI_HOST: mi-runtime
+    #     MI_PORT: 8290
+    #   depends_on:
+    #     db:
+    #       condition: service_healthy
+    si-runtime:
+      build:
+        context: ./streaming-integrator/
+        args:
+          - BASE_IMAGE=wso2/wso2si:4.0.0
+      healthcheck:
+        test: ["CMD", "nc", "-z","localhost", "9443"]
+        interval: 10s
+        start_period: 30s
+        retries: 20
+      ports:
+      - "8025:8025"
+      - "9090:9090"
+      - "9448:9443"
+      - "8830:8830"
+      mem_limit: 512m
+      mem_reservation: 128M
+      cpus: 0.5
+      depends_on:
+        - kafka
+    zookeeper:
+      image: "bitnami/zookeeper:latest"
+      ports:
+        - "2181:2181"
+      environment:
+        - ALLOW_ANONYMOUS_LOGIN=yes
+    kafka:
+      image: bitnami/kafka:2.5.0
+      ports:
+        - "9092:9092"
+      environment:
+        - KAFKA_BROKER_ID=1
+        - KAFKA_LISTENERS=PLAINTEXT://:9092
+        - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://:9092
+        - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+        - ALLOW_PLAINTEXT_LISTENER=yes
+      depends_on:
+        - zookeeper
+
+    # opa-runtime:
+    #   image: openpolicyagent/opa:0.29.4
+    #   command: run --server
+    #   healthcheck:
+    #     test: ["CMD", "nc", "-z","localhost", "8181"]
+    #     interval: 10s
+    #     start_period: 30s
+    #     retries: 20
+    #   ports:
+    #   - "8181:8181"
+    # backend-service:
+    #   build: ./backends/
+    #   healthcheck:
+    #     test: ["CMD", "nc", "-z","localhost", "8080"]
+    #     interval: 10s
+    #     start_period: 30s
+    #     retries: 20
+    #   ports:
+    #   - "8082:8080"
+    #   mem_limit: 512m
+    #   mem_reservation: 128M
+    #   cpus: 1
+    # db:
+    #   image: mysql:8.0.23
+    #   ports:
+    #     - 8083:3306
+    #   volumes:
+    #   - ./database/scripts:/docker-entrypoint-initdb.d
+    #   environment:
+    #     MYSQL_ROOT_PASSWORD: pwd
+    #     MYSQL_DATABASE: mysql
+    #   healthcheck:
+    #     test: ["CMD", "mysqladmin" ,"ping", "-uroot", "-proot"]
+    #     interval: 20s
+    #     retries: 20
+    #     start_period: 15s
+    #   cap_add:
+    #   - SYS_NICE
+    #   mem_limit: 512m
+    #   mem_reservation: 128M
+    #   cpus: 0.5
+    # scripts:
+    #   build: ./scripts
+    #   mem_limit: 256m
+    #   mem_reservation: 128M
+    #   cpus: 1
+    #   environment:
+    #     APIM_HOST : api-manager
+    #     RETRY_SEC : 5
+    #     RE_RUN: 'false'
+    #   depends_on:
+    #     - "api-manager"
